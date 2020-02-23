@@ -288,6 +288,7 @@ class MyServer(socketserver.BaseRequestHandler):
                                 filepath = json_data['filepath']
                                 aim_device = json_data['aim_device']
                                 md5 = json_data['md5']
+
                                 with open("file/Temp/" + filename, 'wb') as f:
                                     now_data_number = 0;
                                     while recv_len < filesize:
