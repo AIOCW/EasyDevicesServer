@@ -7,6 +7,7 @@ from tools.md5 import getmd5
 
 buffsize = 1024
 
+# 废弃函数
 def file_save_option(json_data, tcp_link):
     filename = json_data['filename']
     filesize = json_data['filesize']

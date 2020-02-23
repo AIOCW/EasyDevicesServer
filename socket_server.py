@@ -15,7 +15,7 @@ from entity.client import Client
 
 from tools.net_tools import unpackage_data_2_security, package_data_2_security, byte2data, data2byte
 
-from tools.file_tools import file_send_option, file_save_option
+from tools.file_tools import file_send_option
 
 from tools.md5 import getmd5
 
@@ -40,10 +40,11 @@ class MyServer(socketserver.BaseRequestHandler):
                 order = -1
                 try:
                     order = byte2data(receive_order_buffer_unpackage)
-                except :
-                    pass
+                except Exception as e:
+                    print(e.args)
                     # print("可能是这个错误unpack requires a buffer of 4 bytes")
 
+                # 登录处理区域
                 if order == 1000:
 
                     # 接受客户端介绍信息的长度
@@ -84,6 +85,7 @@ class MyServer(socketserver.BaseRequestHandler):
 
                     self.request.send(send_data)
 
+                # 心跳处理区域
                 elif order == 1010:
                     # 心跳包
                     print("port {} ===接收心跳包 {} now device {}".format(self.client_address[1], self.client_name, [device.name for device in client_list]))
@@ -116,9 +118,11 @@ class MyServer(socketserver.BaseRequestHandler):
                                                 time.sleep(0.005)
                                                 self.request.send(data_task[2])
                                         elif data_task[1] == 'end':
-                                            print('文件传输完成')
+                                            print('小文件传输给接收端完成')
                                             break;
+                        # 分散文件服务端
                         elif one_task[0] == 110040:
+                            a = split_file_counter
                             if len(split_file_counter) == 5:
                                 self.send_task.remove(one_task)
                                 file_deal_thread(str("file_deal"), self.send_task, one_task[1]).start()
@@ -288,26 +292,27 @@ class MyServer(socketserver.BaseRequestHandler):
                                     now_data_number = 0;
                                     while recv_len < filesize:
                                         package_data_buffer = self.request.recv(1028)
-                                        package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
-                                        file_buffer = package_data_buffer_un[0:1024]
-                                        data_number = byte2data(package_data_buffer_un[1024:1028])
+                                        if len(package_data_buffer) == 1028:
+                                            package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
+                                            file_buffer = package_data_buffer_un[0:1024]
+                                            data_number = byte2data(package_data_buffer_un[1024:1028])
 
-                                        if now_data_number == data_number:
-                                            if filesize - recv_len > buffsize:
-                                                recv_len += len(file_buffer)
-                                                one_client.server_thread.send_task.append(
-                                                    [1100, "data", package_data_buffer])
-                                                f.write(file_buffer)
+                                            if now_data_number == data_number:
+                                                if filesize - recv_len > buffsize:
+                                                    recv_len += len(file_buffer)
+                                                    one_client.server_thread.send_task.append(
+                                                        [1100, "data", package_data_buffer])
+                                                    f.write(file_buffer)
+                                                else:
+                                                    end_size = filesize - recv_len
+                                                    recv_len += end_size
+                                                    one_client.server_thread.send_task.append(
+                                                        [1100, "data", package_data_buffer])
+                                                    f.write(file_buffer[0:end_size])
+                                                self.request.send(package_data_2_security(data2byte(91100)))
+                                                now_data_number += 1
                                             else:
-                                                end_size = filesize - recv_len
-                                                recv_len += end_size
-                                                one_client.server_thread.send_task.append(
-                                                    [1100, "data", package_data_buffer])
-                                                f.write(file_buffer[0:end_size])
-                                            self.request.send(package_data_2_security(data2byte(91100)))
-                                            now_data_number += 1
-                                        else:
-                                            continue
+                                                continue
 
                                 one_client.server_thread.send_task.append(
                                         [1100, "end"])
