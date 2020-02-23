@@ -7,18 +7,6 @@ from tools.md5 import getmd5
 
 buffsize = 1024
 
-def operafile(filename):
-    '''对报头进行打包'''
-    filesize_bytes = os.path.getsize(filename)
-    head_dir = {
-        'filename': filename,
-        'filesize_bytes': filesize_bytes
-    }
-    head_info = json.dumps(head_dir)
-    head_info_len = struct.pack('i', len(head_info))
-    print(len(head_info))
-    return head_info_len, head_info
-
 def file_save_option(json_data, tcp_link):
     filename = json_data['filename']
     filesize = json_data['filesize']

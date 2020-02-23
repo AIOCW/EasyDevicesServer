@@ -218,6 +218,7 @@ class MyServer(socketserver.BaseRequestHandler):
 
                     self.request.send(receive_order_buffer)
 
+                # 小于2M的文件接收入口
                 elif order == 1100:
                     print("进入文件操作")
                     confirm_code = package_data_2_security(data2byte(91100))
@@ -315,6 +316,7 @@ class MyServer(socketserver.BaseRequestHandler):
                     confirm_code = package_data_2_security(data2byte(91100))
                     self.request.send(confirm_code)
 
+                # 分片文件的接收入口
                 elif order == 11000:
                     print("进入文件操作")
                     confirm_code = package_data_2_security(data2byte(911000))
@@ -420,6 +422,7 @@ class MyServer(socketserver.BaseRequestHandler):
                     print("{} 使用break".format(self.client_address[1]))
                     break
 
+                # 分片文件的整体文件汇总信息
                 elif order == 11004:
                     print("进入文件操作")
                     confirm_code = package_data_2_security(data2byte(911004))
