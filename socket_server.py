@@ -26,6 +26,7 @@ from file_deal_thread import file_deal_thread
 
 client_list = []
 split_file_counter = []
+slice_file_task = []
 buffsize = 1024
 
 
@@ -122,7 +123,6 @@ class MyServer(socketserver.BaseRequestHandler):
                                             break;
                         # 分散文件服务端
                         elif one_task[0] == 110040:
-                            a = split_file_counter
                             if len(split_file_counter) == 5:
                                 self.send_task.remove(one_task)
                                 file_deal_thread(str("file_deal"), self.send_task, one_task[1]).start()
@@ -146,7 +146,6 @@ class MyServer(socketserver.BaseRequestHandler):
                             self.request.send(send_data)
                             self.request.send(one_task[1])
                             self.request.send(one_task[2])
-                            self.request.send(one_task[3])
                     else:
 
                         send_data = data2byte(1010)
@@ -352,9 +351,9 @@ class MyServer(socketserver.BaseRequestHandler):
                             now_data_number = 0;
                             while recv_len < filesize:
                                 package_data_buffer = self.request.recv(1028)
-                                package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
                                 # print("Data Length {}".format(len(package_data_buffer_un)))
                                 if len(package_data_buffer_un) == 1028:
+                                    package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
                                     file_buffer = package_data_buffer_un[0:1024]
                                     data_number = byte2data(package_data_buffer_un[1024:1028])
                                     # print("Now Data Number {}, Data Number {}, ".format(now_data_number, data_number))
@@ -386,41 +385,44 @@ class MyServer(socketserver.BaseRequestHandler):
                         for one_client in client_list:
                             if one_client.name == json_data['aim_device']:
                                 print("send object {}".format(one_client.name))
-                                one_client.server_thread.send_task.append(
-                                    [11000, "start", json_data_len_buffer, json_data_buffer])
                                 recv_len = 0
                                 filename = json_data['filename']
                                 filesize = json_data['filesize']
                                 filepath = json_data['filepath']
                                 aim_device = json_data['aim_device']
                                 md5 = json_data['md5']
+
+                                slice_file_task.append(
+                                    [filename.split('.')[0], "start", json_data_len_buffer, json_data_buffer])
                                 with open("file/temp_lite/" + filename, 'wb') as f:
                                     now_data_number = 0;
                                     while recv_len < filesize:
                                         package_data_buffer = self.request.recv(1028)
-                                        package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
-                                        file_buffer = package_data_buffer_un[0:1024]
-                                        data_number = byte2data(package_data_buffer_un[1024:1028])
+                                        if len(package_data_buffer) == 1028:
+                                            package_data_buffer_un = unpackage_data_2_security(package_data_buffer)
+                                            file_buffer = package_data_buffer_un[0:1024]
+                                            data_number = byte2data(package_data_buffer_un[1024:1028])
 
-                                        if now_data_number == data_number:
-                                            if filesize - recv_len > buffsize:
-                                                recv_len += len(file_buffer)
-                                                one_client.server_thread.send_task.append(
-                                                    [11000, "data", package_data_buffer])
-                                                f.write(file_buffer)
+                                            if now_data_number == data_number:
+                                                if filesize - recv_len > buffsize:
+                                                    recv_len += len(file_buffer)
+                                                    slice_file_task.append(
+                                                        [filename.split('.')[0], "data", package_data_buffer])
+                                                    f.write(file_buffer)
+                                                else:
+                                                    end_size = filesize - recv_len
+                                                    recv_len += end_size
+                                                    slice_file_task.append(
+                                                        [filename.split('.')[0], "data", package_data_buffer])
+                                                    f.write(file_buffer[0:end_size])
+                                                self.request.send(package_data_2_security(data2byte(911000)))
+                                                now_data_number += 1
                                             else:
-                                                end_size = filesize - recv_len
-                                                recv_len += end_size
-                                                one_client.server_thread.send_task.append(
-                                                    [11000, "data", package_data_buffer])
-                                                f.write(file_buffer[0:end_size])
-                                            self.request.send(package_data_2_security(data2byte(911000)))
-                                            now_data_number += 1
-                                        else:
-                                            continue
-
+                                                continue
+                                    else:
+                                        self.request.send(package_data_2_security(data2byte(911001)))
                                 one_client.server_thread.send_task.append(
-                                        [11000, "end"])
+                                        [filename.split('.')[0], "end"])
 
 
                         confirm_code = package_data_2_security(data2byte(911000))
@@ -428,7 +430,7 @@ class MyServer(socketserver.BaseRequestHandler):
                     print("{} 使用break".format(self.client_address[1]))
                     break
 
-                # 分片文件的整体文件汇总信息
+                # 分片文件的整体文件汇总信息表
                 elif order == 11004:
                     print("进入文件操作")
                     confirm_code = package_data_2_security(data2byte(911004))
@@ -453,8 +455,42 @@ class MyServer(socketserver.BaseRequestHandler):
                         for one_client in client_list:
                             if one_client.name == json_data['aim_device']:
                                 print("send object {}".format(one_client.name))
-                                one_client.server_thread.send_task.append([110041, self.request,
+                                one_client.server_thread.send_task.append([110041,
                                                  json_data_len_buffer, json_data_buffer])
+
+                elif order == 6633:
+                    self_flag = byte2data(unpackage_data_2_security(self.request.recv(4)))
+                    while True:
+                        for task in slice_file_task:
+                            if task[0] == self_flag:
+                                slice_file_task.remove(task)
+                                if task[1] == "data":
+                                    while True:
+                                        try:
+                                            self.tcp_client.send(package_data_2_security(task[1]))
+                                            confirm_data = byte2data(unpackage_data_2_security(self.tcp_client.recv(4)))
+                                            if confirm_data == 941000:
+                                                timeout_counter = 0
+                                                break
+                                            elif confirm_data == 941001:
+                                                print("接收出错，重传")
+                                        except socket.timeout as e:
+                                            timeout_counter += 1
+                                            print(e.args)
+                                            print(traceback.format_exc())
+                                            print("大文件数据发送超时，尝试5次重新发送")
+                                            if timeout_counter == 5:
+                                                return
+                                elif task[1] == "start":
+                                    self.request.send(one_task[2])
+                                    self.request.send(one_task[3])
+                                elif task[1] == "end":
+                                    while True:
+                                        confirm_data = byte2data(unpackage_data_2_security(self.tcp_client.recv(4)))
+                                        if confirm_data == 941000:
+                                            print("接收端已经成功接收该部分文件")
+                                            self.request.close()
+                                            return
 
                 # elif order == 1100:
                 #     print("进入文件操作")
