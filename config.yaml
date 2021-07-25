@@ -1,0 +1,5 @@
+name: test
+password: 12345678
+host: 192.1.1.23
+port: 8080
+dav_path: ""
